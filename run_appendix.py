@@ -443,7 +443,7 @@ def m_refinement(log_file_path: Path):
     for i, cmd in enumerate(prep_cmds, 1):
         cmd_name = cmd[0] if isinstance(cmd, list) else cmd.split()[0]
         logging.info(f"--- Starting M population prep step [{i}/{total_steps}]: {cmd_name} ---")
-        # run_command(cmd, cmd_log_dir / f"prep_step_{i}.log", cwd=m_dir, env=env, module_load='warp/2.0.0dev36')
+        run_command(cmd, cmd_log_dir / f"prep_step_{i}.log", cwd=m_dir, env=env, module_load='warp/2.0.0dev36')
 
     refine_cmds = build_m_refine_command(cfg.m_refine_params)
     logging.info("--- Starting M refinement stage ---")

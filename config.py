@@ -101,6 +101,7 @@ isonet2_params = {
     "cube_size": 96,
     "density_percentage": 50,
     "std_percentage": 80,
+    "z_crop": 0.2,
     "epochs": 100,
     "mw_weight": 200,
     "batch_size": len(gpu_devices),

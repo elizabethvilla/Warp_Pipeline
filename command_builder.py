@@ -46,9 +46,9 @@ def build_isonet2_commands(isonet2_params, gpu_devices, defocus_list):
 
     commands = [
         f'isonet.py prepare_star --even even --odd odd --pixel_size {pixel_size} --tilt_min {isonet2_params["tilt_min"]} --tilt_max {isonet2_params["tilt_max"]} --defocus "{defocus_str}"',
-        f"isonet.py denoise tomograms.star --CTF_mode network --gpuID {gpu_ids}",
+        f"isonet.py denoise tomograms.star --CTF_mode network --gpuID {gpu_ids} --epochs {isonet2_params['epochs']}",
         f"isonet.py predict tomograms.star denoise/network_n2n_unet-medium_{cube_size}_full.pt --gpuID {gpu_ids}",
-        f"isonet.py make_mask tomograms.star --density_percentage {isonet2_params['density_percentage']} --std_percentage {isonet2_params['std_percentage']} --input_column rlnDenoisedTomoName",
+        f"isonet.py make_mask tomograms.star --density_percentage {isonet2_params['density_percentage']} --std_percentage {isonet2_params['std_percentage']} --z_crop {isonet2_params['z_crop']} --input_column rlnDenoisedTomoName",
         f"isonet.py refine tomograms.star --method isonet2-n2n --cube_size {cube_size} --epochs {isonet2_params['epochs']} --mw_weight {isonet2_params['mw_weight']} --CTF_mode network --bfactor 0 --gpuID {gpu_ids} --batch_size {isonet2_params['batch_size']}",
         f"isonet.py predict tomograms.star isonet_maps/network_isonet2-n2n_unet-medium_{cube_size}_full.pt --gpuID {gpu_ids}",
     ]
@@ -255,8 +255,7 @@ def build_m_refine_command(m_refine_params):
     population = f"--population {m_refine_params['directory']}/{m_refine_params['population_name']}.population"
     device = "--perdevice_refine 1 --perdevice_preprocess 1 --perdevice_postprocess 1"
     cmds = [
-        # f"MCore {population} --iter 0 {device}",
-        "MCore",
+        f"MCore {population} --iter 0 {device}",
         f"MCore {population} --iter 5 --refine_imagewarp 4x4 --refine_particles --ctf_defocus --ctf_defocusexhaustive {device}",
         f"MCore {population} --iter 5 --refine_imagewarp 4x4 --refine_particles --ctf_defocus {device}",
         f"MCore {population} --iter 5 --refine_imagewarp 4x4 --refine_particles --ctf_defocus {device}",
