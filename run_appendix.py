@@ -254,7 +254,7 @@ def template_match_3D(log_file_path: Path):
     )
     
     logging.info(f"--- Starting Warp 3D template matching ---")
-    run_command(cmd_template_match, log_file_path, env=env, module_load="warp/2.0.0dev36")
+    run_command(cmd_template_match, log_file_path, env=env, module_load="warp/2.0.0dev39")
     logging.info("--- WarpTools ts_template_match completed. ---")
 
 
@@ -427,7 +427,7 @@ def subtomo_extraction(log_file_path: Path):
     )
 
     logging.info("--- Starting WarpTools ts_export_particles ---")
-    run_command(cmd_export, log_file_path, env=env, module_load="warp/2.0.0dev36")
+    run_command(cmd_export, log_file_path, env=env, module_load="warp/2.0.0dev39")
     logging.info("--- WarpTools ts_export_particles completed. ---")
 
 
@@ -443,7 +443,7 @@ def m_refinement(log_file_path: Path):
     for i, cmd in enumerate(prep_cmds, 1):
         cmd_name = cmd[0] if isinstance(cmd, list) else cmd.split()[0]
         logging.info(f"--- Starting M population prep step [{i}/{total_steps}]: {cmd_name} ---")
-        run_command(cmd, cmd_log_dir / f"prep_step_{i}.log", cwd=m_dir, env=env, module_load='warp/2.0.0dev36')
+        run_command(cmd, cmd_log_dir / f"prep_step_{i}.log", cwd=m_dir, env=env, module_load='warp/2.0.0dev39')
 
     refine_cmds = build_m_refine_command(cfg.m_refine_params)
     logging.info("--- Starting M refinement stage ---")
@@ -451,7 +451,7 @@ def m_refinement(log_file_path: Path):
     for i, cmd in enumerate(refine_cmds, 1):
         cmd_name = cmd[0] if isinstance(cmd, list) else cmd.split()[0]
         logging.info(f"--- Starting M_refine step [{i}/{total_steps}]: {cmd_name} ---")
-        run_command(cmd, cmd_log_dir / f"step_{i}.log", cwd=m_dir, env=env, module_load='warp/2.0.0dev36')
+        run_command(cmd, cmd_log_dir / f"step_{i}.log", cwd=m_dir, env=env, module_load='warp/2.0.0dev39')
     
     logging.info("--- All M_refine steps completed successfully. ---")
     

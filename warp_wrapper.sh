@@ -42,7 +42,7 @@ cd "$DATASET_NAME" || exit
 
 echo "Loading required module: aretomo and warp/2"
 module load aretomo
-module load warp/2.0.0dev36
+module load warp/2.0.0dev39
 
 echo "Executing pipeline: run_pipeline.py"
 python3 "${SCRIPT_DIR}/run_pipeline.py" "$@"

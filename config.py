@@ -7,21 +7,21 @@
 # Modifications here ONLY affect the current dataset run.
 
 # --- General Settings ---
-dataset_name = "260504_Janelia_4hr_HSC"
+dataset_name = "260601_Ab_titan1_conc"
 raw_directory = "/data/Microscopy/Titan/Siyu" 
 # Path to where you would like to save your raw data
 # Titan2 data will be moved there and there might be no copy of your raw data in the original place
 frame_folder = "frames"
 mdoc_folder = "mdocs"
-gain_ref = "20260331_180123_EER_GainReference.gain"
-tomo_match_string = "2026050" 
+gain_ref = "CountRef_260601_G2_Sq1_G1_ts_001_000_-6.0.mrc"
+tomo_match_string = "260601" 
 
 # --- Key Acquisition Parameters ---
-angpix = 1.56
+angpix = 1.561
 dose = 4.24
-tilt_axis_angle = 83.24
+tilt_axis_angle = -94.6
 thickness_pxl = 3000
-camera_type = "Falcon4" # Switch between "K3" or "Falcon4"
+camera_type = "K3" # Switch between "K3" or "Falcon4"
 
 # --- Falcon4 Specific Settings ---
 # The source directory containing raw .eer and .eer.mdoc files
