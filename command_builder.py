@@ -83,7 +83,7 @@ def build_template_match_command(params, jobs_per_gpu, gpu_devices):
         "--template_diameter", str(params['template_diameter']),
         "--peak_distance", str(params['peak_distance']),
         "--symmetry", str(params['symmetry']),
-        "--perdevice", str(jobs_per_gpu),
+        "--perdevice", str(jobs_per_gpu // 2),
     ]
     cmd.extend(["--device_list"] + [str(d) for d in gpu_devices])
     

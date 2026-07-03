@@ -40,10 +40,10 @@ def run_preprocess(dataset_dir: Path, logs_dir: Path, params: dict):
     (dataset_dir / "mdocs").mkdir(exist_ok=True)
     
     mdoc_source_path = Path(cfg.raw_directory) / cfg.dataset_name / cfg.mdoc_folder
-    for mdoc_file in mdoc_source_path.glob(f"{cfg.tomo_match_string}*ts*.mrc.mdoc"):
-    # for mdoc_file in mdoc_source_path.glob(f"{cfg.tomo_match_string}*.mdoc"):
-        dest_file = dataset_dir / "mdocs" / mdoc_file.name.replace(".mrc.", ".")
-        # dest_file = dataset_dir / "mdocs" / mdoc_file.name
+    # for mdoc_file in mdoc_source_path.glob(f"{cfg.tomo_match_string}*ts*.mrc.mdoc"):
+    for mdoc_file in mdoc_source_path.glob(f"{cfg.tomo_match_string}*.mdoc"):
+        # dest_file = dataset_dir / "mdocs" / mdoc_file.name.replace(".mrc.", ".")
+        dest_file = dataset_dir / "mdocs" / mdoc_file.name
         if not dest_file.exists():
             dest_file.symlink_to(mdoc_file)
 

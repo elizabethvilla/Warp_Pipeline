@@ -2,11 +2,12 @@
 
 import argparse
 import logging
+import subprocess
 import sys
 import os
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.getcwd())
 import config as cfg
@@ -237,8 +238,112 @@ def cryolo(log_file_path: Path):
     cfg.subtomo_params = original_params
     logging.info("--- Subtomo extraction after CryoLo completed. ---")
 
+def _findsection_worker(tomo_dir: Path) -> Tuple[str, Optional[float], Optional[float]]:
+    """Run findsection on one tomogram directory and return (name, z_start, z_end)."""
+    tomo_name = tomo_dir.name
+    z_files = sorted(tomo_dir.glob("*z.mrc"))
+    if not z_files:
+        return tomo_name, None, None
+    try:
+        cmd = f"module load imod; findsection -scales 4 -size 32,32,1 {z_files[0]}"
+        result = subprocess.run(
+            cmd, shell=True, capture_output=True, text=True, timeout=300
+        )
+        for line in result.stdout.splitlines():
+            if "Abso" in line:
+                parts = line.split()
+                return tomo_name, float(parts[8]), float(parts[9])
+        return tomo_name, None, None
+    except Exception:
+        return tomo_name, None, None
+
+
+def _run_findsection(log_dir: Path) -> None:
+    """Run findsection in parallel across all tomograms, write ribo_list.txt and ribo_list_failed.txt."""
+    tiltstack_dir = Path("warp_tiltseries/tiltstack")
+    if not tiltstack_dir.exists():
+        logging.error(f"tiltstack directory not found: {tiltstack_dir.resolve()}")
+        return
+
+    tomo_dirs = sorted([d for d in tiltstack_dir.iterdir() if d.is_dir()])
+    if not tomo_dirs:
+        logging.warning("No tomogram directories found in tiltstack.")
+        return
+
+    logging.info(f"--- Running findsection on {len(tomo_dirs)} tomograms ---")
+    results = run_parallel_tasks(
+        _findsection_worker,
+        tomo_dirs,
+        logger=logging.getLogger(__name__),
+    )
+
+    success, failed = [], []
+    for tomo_name, z_start, z_end in results:
+        if z_start is not None:
+            success.append((tomo_name, z_start, z_end))
+        else:
+            failed.append(tomo_name)
+
+    with open("ribo_list.txt", "w") as f:
+        for tomo_name, z_start, z_end in success:
+            f.write(f"{tomo_name}\t{z_start}\t{z_end}\t0\n")
+
+    with open("ribo_list_failed.txt", "w") as f:
+        for tomo_name in failed:
+            f.write(f"{tomo_name}\n")
+
+    logging.info(
+        f"findsection done: {len(success)} succeeded, {len(failed)} failed. "
+        f"Results: ribo_list.txt | Failed: ribo_list_failed.txt"
+    )
+    logging.info(
+        ">>> 3DTM is now running. Use this time to review ribo_list.txt, "
+        "add missing entries from ribo_list_failed.txt, and save as ribo_list_final.txt. <<<"
+    )
+
+
+def _run_starhandler_scale(log_dir: Path) -> None:
+    """Run star-handler process-3DTM2relion (scale step, no ribo_list_final.txt present)."""
+    matching_dir = Path("warp_tiltseries/matching")
+    if not matching_dir.exists():
+        logging.warning(f"matching directory not found: {matching_dir.resolve()}. Skipping star-handler scale.")
+        return
+
+    # star-handler goes to filter mode if ribo_list_final.txt exists — hide it temporarily
+    list_file = Path("ribo_list_final.txt")
+    list_file_tmp = Path("ribo_list_final.txt.bak")
+    hidden = list_file.exists()
+    if hidden:
+        list_file.rename(list_file_tmp)
+        logging.info("Temporarily hiding ribo_list_final.txt to force scale mode.")
+
+    log_path = log_dir / "3DTM_starhandler_scale.log"
+    try:
+        run_command(
+            ["star-handler", "process-3DTM2relion", "-d", str(matching_dir)],
+            log_path,
+        )
+        logging.info("--- star-handler scale completed → warp_tiltseries/matching/scaled/ ---")
+        logging.info(
+            ">>> Complete ribo_list_final.txt (Z bounds + CC threshold), "
+            "then run: python run_appendix.py --stage filter_3dtm <<<"
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        logging.warning(
+            "star-handler not available or failed. Run manually: "
+            f"star-handler process-3DTM2relion -d {matching_dir.resolve()}"
+        )
+    finally:
+        if hidden:
+            list_file_tmp.rename(list_file)
+
+
 def template_match_3D(log_file_path: Path):
     """Run the 3D template matching stage of the pipeline."""
+    # Step 1: parallel findsection → ribo_list.txt (runs before the slow WarpTools step)
+    _run_findsection(log_file_path.parent)
+
+    # Step 2: Warp template matching
     template_path = Path(cfg.template_matching_params['template_path'])
     if not template_path.exists():
         logging.error(f"Template file does not exist: {template_path.resolve()}")
@@ -252,10 +357,43 @@ def template_match_3D(log_file_path: Path):
     cmd_template_match = build_template_match_command(
         cfg.template_matching_params, cfg.jobs_per_gpu, cfg.gpu_devices
     )
-    
+
     logging.info(f"--- Starting Warp 3D template matching ---")
     run_command(cmd_template_match, log_file_path, env=env, module_load="warp/2.0.0dev39")
     logging.info("--- WarpTools ts_template_match completed. ---")
+
+    # Step 3: star-handler scale → matching/scaled/ (requires 3DTM star files)
+    _run_starhandler_scale(log_file_path.parent)
+
+
+def filter_3dtm(log_file_path: Path):
+    """Filter 3DTM picks using ribo_list_final.txt (star-handler step 2)."""
+    list_file = Path("ribo_list_final.txt")
+    if not list_file.exists():
+        logging.error(
+            f"ribo_list_final.txt not found at {list_file.resolve()}. "
+            "Please annotate ribo_list.txt and save it as ribo_list_final.txt first."
+        )
+        sys.exit(1)
+
+    matching_dir = Path("warp_tiltseries/matching")
+    if not matching_dir.exists():
+        logging.error(f"matching directory not found: {matching_dir.resolve()}")
+        sys.exit(1)
+
+    logging.info("--- Running star-handler filter (process-3DTM2relion with ribo_list_final.txt) ---")
+    try:
+        run_command(
+            ["star-handler", "process-3DTM2relion", "-d", str(matching_dir)],
+            log_file_path,
+        )
+        logging.info("--- filter_3dtm completed → warp_tiltseries/matching/filtered/ ---")
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        logging.error(
+            "star-handler not available or failed. Run manually: "
+            f"star-handler process-3DTM2relion -d {matching_dir.resolve()}"
+        )
+        sys.exit(1)
 
 
 def _gapstop_wedge_worker(tomo, tomo_id, wedge_dir, env, wedge_log_dir):
@@ -462,7 +600,7 @@ def main():
     parser.add_argument(
         '--stage',
         type=str,
-        choices=['isonet', 'isonet2', 'cryolo', 'reconstruct', '3DTM', 'subtomo', 'm_refine', 'gapstop'],
+        choices=['isonet', 'isonet2', 'cryolo', 'reconstruct', '3DTM', 'filter_3dtm', 'subtomo', 'm_refine', 'gapstop'],
         help="Which stage of the pipeline to run."
     )
     parser.add_argument('--input_list', type=str, default=None, help="Override input list file for 3DTM")
@@ -500,6 +638,7 @@ def main():
             'isonet2': isonet2,
             'cryolo': cryolo,
             '3DTM': template_match_3D,
+            'filter_3dtm': filter_3dtm,
             'subtomo': subtomo_extraction,
             'm_refine': m_refinement,
             'gapstop': template_match_gapstop
