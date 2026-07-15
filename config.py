@@ -41,6 +41,9 @@ gpu_devices = [int(x) for x in os.environ.get('CUDA_VISIBLE_DEVICES', '0').split
 jobs_per_gpu = 4
 etomo_cpu_cores = 8
 gapstop_workers = 24
+# Nodes with Blackwell GPUs, needing separate envs/modules for some tools (see isonet2).
+# Manual patch as of 2026-07-13, not an official PCF module - re-check if PCF ships one.
+BLACKWELL_HOSTNAMES = {"gpu4", "gpu5", "gpu6"}
 
 # --- Base Path ---
 base_dir = "/data/workspace/Siyu/Titan1_Processing"

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import logging
+import os
+import socket
 import subprocess
 import xml.etree.ElementTree as ET
 import numpy as np
@@ -159,6 +161,7 @@ def run_command(
     shell: bool = False,
     verbose: bool = True,
     module_load: Optional[Union[str, List[str]]] = None,
+    conda_env: Optional[str] = None,
 ) -> None:
     """
     Runs a command, logs its output, and handles errors.
@@ -173,16 +176,24 @@ def run_command(
         verbose: If True, prints command info to the main logger.
         module_load: A module or list of modules to load before running the command.
                      e.g., 'cryolo' or ['module1', 'module2'].
+        conda_env: Name of a conda environment to activate before running the command.
+                   Mutually exclusive with module_load.
     """
+    if module_load and conda_env:
+        raise ValueError("run_command: module_load and conda_env are mutually exclusive")
+
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    use_shell = shell or bool(module_load)
+    use_shell = shell or bool(module_load) or bool(conda_env)
     if use_shell:
         cmd_str = ' '.join(map(str, command)) if isinstance(command, list) else command
         if module_load:
             modules = [module_load] if isinstance(module_load, str) else module_load
-            load_prefix = '; '.join(f"module load {mod}" for mod in modules)
-            executable_command = f"{load_prefix}; {cmd_str}"
+            prefix = ' && '.join(f"module load {mod}" for mod in modules)
+            executable_command = f"{prefix} && {cmd_str}"
+        elif conda_env:
+            prefix = f"source /home/sic027/conda/bin/activate {conda_env}"
+            executable_command = f"{prefix} && {cmd_str}"
         else:
             executable_command = cmd_str
     else:
@@ -213,6 +224,16 @@ def run_command(
         cmd_name = command[0] if isinstance(command, list) else command.split()[0]
         logging.error(f"Command not found: {cmd_name}. Ensure it is in the system's PATH.")
         raise
+
+
+def detect_gpu_arch(blackwell_hosts) -> str:
+    """
+    Detect whether the current job is running on a Blackwell GPU node.
+    Used to pick between an old module_load and a newer conda_env for tools
+    that need separate environments per GPU generation (e.g. isonet2).
+    """
+    hostname = (os.environ.get('SLURMD_NODENAME') or socket.gethostname()).split('.')[0]
+    return 'blackwell' if hostname in blackwell_hosts else 'legacy'
 
 
 def run_parallel_tasks(

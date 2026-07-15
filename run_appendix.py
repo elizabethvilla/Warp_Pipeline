@@ -6,12 +6,13 @@ import subprocess
 import sys
 import os
 import re
+import socket
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.getcwd())
 import config as cfg
-from pipeline_utils import run_command, filter_star_file, run_parallel_tasks, load_tomo_list
+from pipeline_utils import run_command, filter_star_file, run_parallel_tasks, load_tomo_list, detect_gpu_arch
 from command_builder import (
     build_m_refine_command,
     build_m_population_command,
@@ -141,11 +142,18 @@ def isonet2(log_file_path: Path):
 
     commands = build_isonet2_commands(cfg.isonet2_params, cfg.gpu_devices, defocus_list)
 
+    gpu_arch = detect_gpu_arch(cfg.BLACKWELL_HOSTNAMES)
+    logging.info(f"ISONet2 GPU arch: {gpu_arch} (host={socket.gethostname()})")
+
     total_steps = len(commands)
     for i, cmd in enumerate(commands, 1):
         logging.info(f"--- Starting ISONet2 step [{i}/{total_steps}]: {cmd.split()[1]} ---")
-        run_command(cmd, cmd_log_dir / f"step_{i}.log",
-                    cwd=isonet_dir, module_load='isonet2/2.0.1b-dev')
+        if gpu_arch == 'blackwell':
+            run_command(cmd, cmd_log_dir / f"step_{i}.log",
+                        cwd=isonet_dir, conda_env='isonet2_blackwell_test')
+        else:
+            run_command(cmd, cmd_log_dir / f"step_{i}.log",
+                        cwd=isonet_dir, module_load='isonet2/2.0.1b-dev')
 
     logging.info("--- All ISONet2 steps completed successfully. ---")
 
