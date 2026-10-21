@@ -573,7 +573,7 @@ def subtomo_extraction(log_file_path: Path):
     )
 
     logging.info("--- Starting WarpTools ts_export_particles ---")
-    run_command(cmd_export, log_file_path, env=env, module_load="warp/2.0.0dev39")
+    run_command(cmd_export, log_file_path, env=env, conda_env="warp_dev40")
     logging.info("--- WarpTools ts_export_particles completed. ---")
 
 
